@@ -1,6 +1,7 @@
 apply plugin: rootProject.ext.plugins.application
 
 android {
+    namespace 'com.hsj.sample'
     compileSdkVersion rootProject.ext.android.compileSdkVersion
     buildToolsVersion rootProject.ext.android.buildToolsVersion
     defaultConfig {
@@ -85,4 +86,5 @@ dependencies {
 
     //sdk_v4l2_camera
     implementation project(path: ':sdk_v4l2_camera')
+    implementation "io.github.crow-misia.libyuv:libyuv-android:0.43.2"
 }

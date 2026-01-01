@@ -1,6 +1,7 @@
 package com.hsj.camera;
 
 import android.util.Log;
+import com.hsj.sdk_v4l2_camera.BuildConfig;
 import java.lang.reflect.Method;
 
 /**

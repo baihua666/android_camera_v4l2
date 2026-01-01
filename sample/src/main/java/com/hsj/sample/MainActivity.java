@@ -10,6 +10,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.Surface;
 import android.view.View;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
@@ -25,11 +26,15 @@ import com.hsj.camera.IRender;
 import com.hsj.camera.ISurfaceCallback;
 
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.text.SimpleDateFormat;
 import java.util.Collection;
+import java.util.Date;
+import java.util.Locale;
 
 /**
  * @Author:Hsj
@@ -53,6 +58,13 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
     private Surface surface;
     private LinearLayout ll;
 
+    // Video Recording
+    private V4L2VideoRecorder videoRecorder;
+    private Button btnStartRecord;
+    private Button btnStopRecord;
+    private int videoWidth;
+    private int videoHeight;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -66,9 +78,14 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
         this.render = cameraView.getRender(CameraView.COMMON);
         this.render.setSurfaceCallback(this);
 
+        // 初始化录制按钮
+        btnStartRecord = findViewById(R.id.btn_start_record);
+        btnStopRecord = findViewById(R.id.btn_stop_record);
+        btnStartRecord.setOnClickListener(v -> startRecording());
+        btnStopRecord.setOnClickListener(v -> stopRecording());
+
         //Request permission: /dev/video*
-        boolean ret = requestPermission();
-        showToast("Request permission: " + (ret ? "succeed" : "failed"));
+        requestPermissionV1();
     }
 
     @Override
@@ -125,16 +142,71 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
             if (supportFrameSize == null || supportFrameSize.length == 0) {
                 showToast("Get support preview size failed.");
             } else {
-                final int index = supportFrameSize.length / 2;
-                final int width = supportFrameSize[index][0];
-                final int height = supportFrameSize[index][1];
-                Log.d(TAG, "width=" + width + ", height=" + height);
-                if (ret) ret = camera.setFrameSize(width, height, CameraAPI.FRAME_FORMAT_MJPEG);
+                // 打印所有支持的分辨率
+                Log.d(TAG, "Supported resolutions (" + supportFrameSize.length + "):");
+                for (int i = 0; i < supportFrameSize.length; i++) {
+                    Log.d(TAG, "  [" + i + "] " + supportFrameSize[i][0] + "x" + supportFrameSize[i][1]);
+                }
+
+                // 选择最佳分辨率：优先 1080P，其次 720P，否则选择中间分辨率
+                int[] selectedSize = selectBestResolution(supportFrameSize);
+                final int width = selectedSize[0];
+                final int height = selectedSize[1];
+                Log.d(TAG, "Selected resolution: " + width + "x" + height);
+
+                // 保存视频尺寸
+                this.videoWidth = width;
+                this.videoHeight = height;
+
+                // 使用YUYV格式
+                if (ret) {
+                    ret = camera.setFrameSize(width, height, CameraAPI.FRAME_FORMAT_YUYV);
+                    if (!ret) {
+                        Log.e(TAG, "setFrameSize failed for " + width + "x" + height + " YUYV");
+                        showToast("Set frame size failed");
+                    }
+                }
                 if (ret) this.camera = camera;
             }
         } else {
             showToast("Camera had benn created");
         }
+    }
+
+    /**
+     * 选择最佳分辨率
+     * 优先级：720x480（已验证可用）> 1080P > 720P > 中间分辨率
+     */
+    private int[] selectBestResolution(int[][] supportFrameSize) {
+        // 优先选择 720x480（之前验证过可以正常工作）
+        for (int[] size : supportFrameSize) {
+            if (size[0] == 720 && size[1] == 480) {
+                Log.d(TAG, "Found 720x480 resolution (preferred)");
+                return size;
+            }
+        }
+
+        // 其次选择 1080P
+        for (int[] size : supportFrameSize) {
+            if (size[0] == 1920 && size[1] == 1080) {
+                Log.d(TAG, "Found 1080P resolution");
+                return size;
+            }
+        }
+
+        // 再次选择 720P
+        for (int[] size : supportFrameSize) {
+            if (size[0] == 1280 && size[1] == 720) {
+                Log.d(TAG, "Found 720P resolution");
+                return size;
+            }
+        }
+
+        // 否则选择中间分辨率
+        int index = supportFrameSize.length / 2;
+        Log.d(TAG, "Using middle resolution [" + index + "]: " +
+            supportFrameSize[index][0] + "x" + supportFrameSize[index][1]);
+        return supportFrameSize[index];
     }
 
     private void start() {
@@ -147,7 +219,12 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
         }
     }
 
-    private final IFrameCallback frameCallback = frame -> {};
+    private final IFrameCallback frameCallback = frame -> {
+        // 如果正在录制，将帧数据传递给 VideoRecorder
+        if (videoRecorder != null && videoRecorder.isRecording()) {
+            videoRecorder.writeFrame(frame);
+        }
+    };
 
     private void stop() {
         if (this.camera != null) {
@@ -193,6 +270,26 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
         Log.d(TAG, "request video rw permission: " + result);
         return result;
     }
+
+    private boolean requestPermissionV1() {
+        try {
+            // 使用系统API直接设置权限
+//            java.lang.reflect.Method setGid = android.os.Process.class.getMethod("setGid", int.class);
+//            java.lang.reflect.Method setUid = android.os.Process.class.getMethod("setUid", int.class);
+//
+//            // 如果系统支持，设置到root权限 (需要系统签名)
+//            setGid.invoke(null, 0);
+//            setUid.invoke(null, 0);
+
+            // 或者直接使用chmod命令（不需要su）
+            Runtime.getRuntime().exec("chmod 777 /dev/video*");
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
 
     private void showSingleChoiceDialog() {
         UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
@@ -255,6 +352,65 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
             }
         }
         return ret;
+    }
+
+//==========================================Video Recording=========================================
+
+    /**
+     * 开始录制视频
+     */
+    private void startRecording() {
+        if (this.camera == null) {
+            showToast("Please create camera first");
+            return;
+        }
+
+        if (videoRecorder != null && videoRecorder.isRecording()) {
+            showToast("Already recording");
+            return;
+        }
+
+        // 创建输出文件路径
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
+        String timestamp = sdf.format(new Date());
+        File videoDir = new File(getExternalFilesDir(null), "videos");
+        if (!videoDir.exists()) {
+            videoDir.mkdirs();
+        }
+        String outputPath = new File(videoDir, "video_" + timestamp + ".mp4").getAbsolutePath();
+
+        // 创建 V4L2VideoRecorder
+        videoRecorder = new V4L2VideoRecorder(videoWidth, videoHeight, outputPath);
+
+        // 开始录制
+        if (videoRecorder.start()) {
+            btnStartRecord.setEnabled(false);
+            btnStopRecord.setEnabled(true);
+            showToast("Recording started: " + outputPath);
+            Log.d(TAG, "Recording started: " + outputPath);
+        } else {
+            videoRecorder = null;
+            showToast("Failed to start recording");
+        }
+    }
+
+    /**
+     * 停止录制视频
+     */
+    private void stopRecording() {
+        if (videoRecorder == null || !videoRecorder.isRecording()) {
+            showToast("Not recording");
+            return;
+        }
+
+        videoRecorder.stop();
+        videoRecorder = null;
+
+        btnStartRecord.setEnabled(true);
+        btnStopRecord.setEnabled(false);
+
+        showToast("Recording stopped");
+        Log.d(TAG, "Recording stopped");
     }
 
 }

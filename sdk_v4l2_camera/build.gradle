@@ -1,8 +1,13 @@
 apply plugin: rootProject.ext.plugins.library
 
 android {
+    namespace 'com.hsj.sdk_v4l2_camera'
     compileSdkVersion rootProject.ext.android.compileSdkVersion
     buildToolsVersion rootProject.ext.android.buildToolsVersion
+
+    buildFeatures {
+        buildConfig true
+    }
     defaultConfig {
         minSdkVersion rootProject.ext.android.minSdkVersion
         targetSdkVersion rootProject.ext.android.targetSdkVersion
@@ -31,7 +36,6 @@ android {
     externalNativeBuild {
         cmake {
             path "src/main/cpp/CMakeLists.txt"
-            version "3.10.2"
         }
     }
 

@@ -350,7 +350,9 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
         if (frame_format == FRAME_FORMAT_MJPEG) {
             parm.parm.capture.timeperframe.denominator = 30;
         } else {
-            parm.parm.capture.timeperframe.denominator = 10;
+//            parm.parm.capture.timeperframe.denominator = 10;
+// tubao,统一为30fps
+            parm.parm.capture.timeperframe.denominator = 30;
         }
         if (0 > ioctl(fd, VIDIOC_S_PARM, &parm)) {
             LOGW(TAG, "setFrameSize: ioctl set fps failed, %s", strerror(errno));
