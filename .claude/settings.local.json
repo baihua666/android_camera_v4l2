@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew:*)",
+      "Bash(chmod:*)",
+      "Bash(ffmpeg:*)",
+      "Bash(ffprobe:*)",
+      "Bash(adb install:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(xargs adb install:*)",
+      "Bash(adb logcat:*)",
+      "Bash(ls:*)"
+    ]
+  }
+}

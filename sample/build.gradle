@@ -16,10 +16,15 @@ android {
 
     signingConfigs {
         config {
-            keyAlias 'android'
-            keyPassword 'android'
-            storeFile file('android.jks')
-            storePassword 'android'
+//            keyAlias 'android'
+//            keyPassword 'android'
+//            storeFile file('android.jks')
+//            storePassword 'android'
+
+            storeFile file('../sign/platform.keystore')
+            storePassword 'rk3576'
+            keyAlias 'rk3576'
+            keyPassword 'rk3576'
         }
     }
 

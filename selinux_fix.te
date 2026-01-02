@@ -1,0 +1,16 @@
+# SELinux policy to allow system_app to execute su and access video devices
+
+# Allow system_app to execute su binary
+allow system_app su_exec:file { execute execute_no_trans };
+allow system_app system:process { transition };
+
+# Allow system_app to access video devices directly
+allow system_app video_device:chr_file { open read write ioctl };
+allow system_app graphics_device:chr_file { open read write ioctl };
+
+# Allow executing shell commands for chmod
+allow system_app shell_exec:file { execute };
+allow system_app system_file:file { execute };
+
+# Domain transition for su
+type_transition system_app su_exec:process system;

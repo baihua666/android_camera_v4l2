@@ -1,0 +1,5 @@
+# Extended file contexts for su binary and video devices
+/system/bin/su u:object_r:su_exec:s0
+/system/xbin/su u:object_r:su_exec:s0
+/dev/video[0-9]* u:object_r:video_device:s0
+/dev/v4l/by-path/* u:object_r:video_device:s0

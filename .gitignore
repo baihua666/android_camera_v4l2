@@ -13,3 +13,6 @@
 /captures
 .externalNativeBuild
 .cxx
+
+# API Documentation (generated)
+/docs/api.html
