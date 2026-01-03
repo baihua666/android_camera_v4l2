@@ -367,6 +367,20 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
 //==========================================Video Recording=========================================
 
     /**
+     * 生成录制输出文件路径
+     * 业务层负责生成路径，便于自定义存储策略
+     */
+    private String generateOutputPath() {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
+        String timestamp = sdf.format(new Date());
+        File videoDir = new File(getExternalFilesDir(null), "videos");
+        if (!videoDir.exists()) {
+            videoDir.mkdirs();
+        }
+        return new File(videoDir, "video_" + timestamp + ".mp4").getAbsolutePath();
+    }
+
+    /**
      * 开始录制视频
      */
     private void startRecording() {
@@ -380,16 +394,10 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
             return;
         }
 
-        // 创建输出文件路径
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
-        String timestamp = sdf.format(new Date());
-        File videoDir = new File(getExternalFilesDir(null), "videos");
-        if (!videoDir.exists()) {
-            videoDir.mkdirs();
-        }
-        String outputPath = new File(videoDir, "video_" + timestamp + ".mp4").getAbsolutePath();
+        // 业务层生成输出文件路径
+        String outputPath = generateOutputPath();
 
-        // 创建 V4L2VideoRecorder
+        // 创建 V4L2VideoRecorder，传入路径
         videoRecorder = new V4L2VideoRecorder(videoWidth, videoHeight, outputPath);
 
         // 开始录制

@@ -10,7 +10,11 @@
       "WebFetch(domain:github.com)",
       "Bash(xargs adb install:*)",
       "Bash(adb logcat:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(adb shell:*)",
+      "Bash(xargs:*)",
+      "Bash(cat:*)"
     ]
   }
 }
