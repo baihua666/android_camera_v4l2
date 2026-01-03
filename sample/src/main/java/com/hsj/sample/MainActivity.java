@@ -65,6 +65,10 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
     private int videoWidth;
     private int videoHeight;
 
+    private int frameFormat = CameraAPI.FRAME_FORMAT_MJPEG;
+//    private int frameFormat = CameraAPI.FRAME_FORMAT_YUYV;
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -154,16 +158,27 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
                 final int height = selectedSize[1];
                 Log.d(TAG, "Selected resolution: " + width + "x" + height);
 
-                // 保存视频尺寸
-                this.videoWidth = width;
-                this.videoHeight = height;
-
-                // 使用YUYV格式
+                // 使用 MJPEG 格式以支持 1920x1080 高分辨率
                 if (ret) {
-                    ret = camera.setFrameSize(width, height, CameraAPI.FRAME_FORMAT_YUYV);
+                    ret = camera.setFrameSize(width, height, frameFormat);
                     if (!ret) {
-                        Log.e(TAG, "setFrameSize failed for " + width + "x" + height + " YUYV");
+                        Log.e(TAG, "setFrameSize failed for " + width + "x" + height + " MJPEG");
                         showToast("Set frame size failed");
+                    } else {
+                        // 获取驱动实际设置的分辨率（可能与请求的不同）
+                        android.util.Pair<Integer, Integer> actualSize = camera.getActualFrameSize();
+                        if (actualSize != null) {
+                            this.videoWidth = actualSize.first;
+                            this.videoHeight = actualSize.second;
+                            Log.d(TAG, "Actual frame size: " + this.videoWidth + "x" + this.videoHeight +
+                                  (this.videoWidth != width || this.videoHeight != height ?
+                                   " (different from requested " + width + "x" + height + ")" : ""));
+                        } else {
+                            // 如果获取失败，使用请求的分辨率作为后备
+                            this.videoWidth = width;
+                            this.videoHeight = height;
+                            Log.w(TAG, "Failed to get actual frame size, using requested: " + width + "x" + height);
+                        }
                     }
                 }
                 if (ret) this.camera = camera;
@@ -175,32 +190,27 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
 
     /**
      * 选择最佳分辨率
-     * 优先级：720x480（已验证可用）> 1080P > 720P > 中间分辨率
+     * MJPEG 格式优先级：1080P > 720P > 中间分辨率
      */
     private int[] selectBestResolution(int[][] supportFrameSize) {
-        // 优先选择 720x480（之前验证过可以正常工作）
-        for (int[] size : supportFrameSize) {
-            if (size[0] == 720 && size[1] == 480) {
-                Log.d(TAG, "Found 720x480 resolution (preferred)");
-                return size;
+        // 优先选择 1080P（MJPEG 支持）
+        if (frameFormat == CameraAPI.FRAME_FORMAT_MJPEG) {
+            for (int[] size : supportFrameSize) {
+                if (size[0] == 1920 && size[1] == 1080) {
+                    Log.d(TAG, "Found 1080P resolution (MJPEG)");
+                    return size;
+                }
+            }
+        }
+        else if (frameFormat == CameraAPI.FRAME_FORMAT_YUYV) {
+            for (int[] size : supportFrameSize) {
+                if (size[0] == 720 && size[1] == 576) {
+                    Log.d(TAG, "Found 720P resolution");
+                    return size;
+                }
             }
         }
 
-        // 其次选择 1080P
-        for (int[] size : supportFrameSize) {
-            if (size[0] == 1920 && size[1] == 1080) {
-                Log.d(TAG, "Found 1080P resolution");
-                return size;
-            }
-        }
-
-        // 再次选择 720P
-        for (int[] size : supportFrameSize) {
-            if (size[0] == 1280 && size[1] == 720) {
-                Log.d(TAG, "Found 720P resolution");
-                return size;
-            }
-        }
 
         // 否则选择中间分辨率
         int index = supportFrameSize.length / 2;

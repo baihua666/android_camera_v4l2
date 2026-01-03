@@ -67,6 +67,7 @@ public:
     ActionInfo updateExposure(unsigned int level);
     ActionInfo getSupportSize(std::vector<std::pair<int, int>> &sizes);
     ActionInfo setFrameSize(int width, int height, int frame_format);
+    void getActualFrameSize(int &width, int &height);
     ActionInfo setFrameCallback(JNIEnv *env, jobject frame_callback);
     ActionInfo setPreview(ANativeWindow *window);
     ActionInfo start();

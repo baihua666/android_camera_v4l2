@@ -50,8 +50,7 @@ CameraView::CameraView(int pixelWidth, int pixelHeight,
         window(window),
         pixelWidth(pixelWidth),
         pixelHeight(pixelHeight),
-        pixelFormat(pixelFormat),
-        stride_width(pixelWidth * 2) {
+        pixelFormat(pixelFormat) {
     if (pixelFormat == PIXEL_FORMAT_NV12) {
         start_uv = pixelWidth * pixelHeight;
     } else if (pixelFormat == PIXEL_FORMAT_YUV422) {
@@ -59,6 +58,7 @@ CameraView::CameraView(int pixelWidth, int pixelHeight,
         start_u = pixelWidth * pixelHeight;
         start_v = start_u * 3 / 2;
     } else if (pixelFormat == PIXEL_FORMAT_YUYV) {
+        stride_width = pixelWidth * 2;
         stride_uv = pixelWidth / 2;
         start_u = pixelWidth * pixelHeight;
         start_v = start_u * 3 / 2;

@@ -110,6 +110,22 @@ static ActionInfo nativeFrameSize(JNIEnv *env, jobject thiz, CAMERA_ID cameraId,
     return status;
 }
 
+static jintArray nativeGetActualFrameSize(JNIEnv *env, jobject thiz, CAMERA_ID cameraId) {
+    auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
+    jintArray result = nullptr;
+    if (LIKELY(camera)) {
+        int width = 0, height = 0;
+        camera->getActualFrameSize(width, height);
+        result = env->NewIntArray(2);
+        if (result) {
+            jint size[2] = {width, height};
+            env->SetIntArrayRegion(result, 0, 2, size);
+            LOGD(TAG, "camera->getActualFrameSize(): width=%d, height=%d", width, height);
+        }
+    }
+    return result;
+}
+
 static ActionInfo nativeFrameCallback(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, jobject frame_callback) {
     auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
     ActionInfo status = ACTION_ERROR_DESTROY;
@@ -166,17 +182,18 @@ static ActionInfo nativeDestroy(JNIEnv *env, jobject thiz, CAMERA_ID cameraId) {
 }
 
 static const JNINativeMethod METHODS[] = {
-        {"nativeInit",          "()J",                                 (void *) nativeInit},
-        {"nativeCreate",        "(JII)I",                              (void *) nativeCreate},
-        {"nativeAutoExposure",  "(JZ)I",                               (void *) nativeAutoExposure},
-        {"nativeSetExposure",   "(JI)I",                               (void *) nativeSetExposure},
-        {"nativeFrameCallback", "(JLcom/hsj/camera/IFrameCallback;)I", (void *) nativeFrameCallback},
-        {"nativeSupportSize",   "(J)[[I",                              (void *) nativeSupportSize},
-        {"nativeFrameSize",     "(JIII)I",                             (void *) nativeFrameSize},
-        {"nativePreview",       "(JLandroid/view/Surface;)I",          (void *) nativePreview},
-        {"nativeStart",         "(J)I",                                (void *) nativeStart},
-        {"nativeStop",          "(J)I",                                (void *) nativeStop},
-        {"nativeDestroy",       "(J)I",                                (void *) nativeDestroy},
+        {"nativeInit",               "()J",                                 (void *) nativeInit},
+        {"nativeCreate",             "(JII)I",                              (void *) nativeCreate},
+        {"nativeAutoExposure",       "(JZ)I",                               (void *) nativeAutoExposure},
+        {"nativeSetExposure",        "(JI)I",                               (void *) nativeSetExposure},
+        {"nativeFrameCallback",      "(JLcom/hsj/camera/IFrameCallback;)I", (void *) nativeFrameCallback},
+        {"nativeSupportSize",        "(J)[[I",                              (void *) nativeSupportSize},
+        {"nativeFrameSize",          "(JIII)I",                             (void *) nativeFrameSize},
+        {"nativeGetActualFrameSize", "(J)[I",                               (void *) nativeGetActualFrameSize},
+        {"nativePreview",            "(JLandroid/view/Surface;)I",          (void *) nativePreview},
+        {"nativeStart",              "(J)I",                                (void *) nativeStart},
+        {"nativeStop",               "(J)I",                                (void *) nativeStop},
+        {"nativeDestroy",            "(J)I",                                (void *) nativeDestroy},
 };
 
 jint registerAPI(JNIEnv *env){

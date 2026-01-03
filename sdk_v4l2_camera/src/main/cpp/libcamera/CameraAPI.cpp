@@ -151,7 +151,7 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
             //time0 = timeMs();
 
             //YUYV
-            memcpy(out_buffer, camera->buffers[buffer.index].start, buffer.length);
+            memcpy(out_buffer, camera->buffers[buffer.index].start, camera->pixelBytes);
 
             //Render->YUYV
             renderFrame(out_buffer);
@@ -377,6 +377,11 @@ ActionInfo CameraAPI::setFrameSize(int width, int height, int frame_format) {
         LOGW(TAG, "setFrameSize: error status, %d", getStatus());
         return ACTION_ERROR_SET_W_H;
     }
+}
+
+void CameraAPI::getActualFrameSize(int &width, int &height) {
+    width = frameWidth;
+    height = frameHeight;
 }
 
 ActionInfo CameraAPI::setFrameCallback(JNIEnv *env, jobject frame_callback) {

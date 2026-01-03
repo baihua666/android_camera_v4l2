@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import io.github.crow_misia.libyuv.Yuy2Buffer;
 import io.github.crow_misia.libyuv.Nv12Buffer;
 import io.github.crow_misia.libyuv.I420Buffer;
+import io.github.crow_misia.libyuv.I422Buffer;
 
 /**
  * @Author: Hsj
@@ -42,7 +43,6 @@ public class V4L2VideoRecorder {
     private static final int OUTPUT_TIMEOUT_USEC = 0;     // 输出 buffer 非阻塞轮询
 
     // ========== 性能测试开关 ==========
-    // 设置为 true 使用 libyuv 库进行转换（需要修复API调用）
     // 设置为 false 使用手动Java转换
     private static final boolean USE_LIBYUV = true;
 
@@ -71,6 +71,7 @@ public class V4L2VideoRecorder {
 
     // ========== libyuv 复用 Buffer（避免每帧分配） ==========
     private Yuy2Buffer reusableYuy2Buffer;    // 复用的 YUYV 输入 buffer
+    private I422Buffer reusableI422Buffer;    // 复用的 I422 输入 buffer (MJPEG软解)
     private Nv12Buffer reusableNv12Buffer;    // 复用的 NV12 输出 buffer
     private I420Buffer reusableI420Buffer;    // 复用的 I420 输出 buffer
     private byte[] reusableYuv420Array;       // 复用的输出字节数组
@@ -196,43 +197,41 @@ public class V4L2VideoRecorder {
                 }
             }
 
-            // 判断数据格式：YUYV 或 MJPEG（不限制帧率，按摄像头原始帧率录制）
-            boolean isYUYV = (frameBytes.length == width * height * 2);
+            // 判断数据格式：NV12（MJPEG解码后）、YUYV 或 I422
+            int expectedNV12Size = width * height * 3 / 2;
+            int expectedYUYVSize = width * height * 2;
 
-            if (isYUYV) {
-                // 直接处理 YUYV 数据
-                encodeYUYVFrame(frameBytes);
-            } else {
-                // 尝试解码 MJPEG
-                Bitmap bitmap = BitmapFactory.decodeByteArray(frameBytes, 0, frameBytes.length);
-                if (bitmap == null) {
-                    Log.e(TAG, "!!! Failed to decode MJPEG frame " + frameIndex +
-                        ", data size: " + frameBytes.length);
-                    if (frameIndex < 3) {
-                        saveDebugFrame(frameBytes, frameIndex);
-                    }
-                    frameIndex++;
-                    return;
-                }
-
-                // 第一帧：输出 Bitmap 信息
+            if (frameBytes.length == expectedNV12Size) {
+                // NV12 格式（MJPEG 硬件解码后）- 直接传给编码器
                 if (frameIndex == 0) {
-                    Log.d(TAG, "Bitmap decoded: " + bitmap.getWidth() + "x" + bitmap.getHeight() +
-                        ", config=" + bitmap.getConfig());
+                    Log.d(TAG, "✅ Format: NV12 (MJPEG hardware decoded, ready for encoder)");
+                }
+                encodeNV12Frame(frameBytes);
+            } else if (frameBytes.length == expectedYUYVSize) {
+                // YUYV 或 I422 格式 - 检测具体是哪种
+                // YUYV: Y U Y V 交织，前4字节应该是 Y U Y V
+                // I422: 平面分离，前面都是 Y 值
+                boolean isYUYV = isYUYVFormat(frameBytes);
+
+                if (frameIndex == 0) {
+                    if (isYUYV) {
+                        Log.d(TAG, "✅ Format: YUYV (packed, converting to NV12)");
+                    } else {
+                        Log.d(TAG, "✅ Format: I422 (planar YUV422 from MJPEG software decoder, converting to NV12)");
+                    }
                 }
 
-                // 确保 Bitmap 尺寸正确
-                if (bitmap.getWidth() != width || bitmap.getHeight() != height) {
-                    Log.d(TAG, "Scaling bitmap from " + bitmap.getWidth() + "x" + bitmap.getHeight() +
-                        " to " + width + "x" + height);
-                    Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, width, height, true);
-                    bitmap.recycle();
-                    bitmap = scaledBitmap;
+                if (isYUYV) {
+                    encodeYUYVFrame(frameBytes);
+                } else {
+                    encodeI422Frame(frameBytes);
                 }
-
-                // 将 Bitmap 转换为 YUV 并编码
-                encodeFrame(bitmap);
-                bitmap.recycle();
+            } else {
+                // 未知格式
+                Log.e(TAG, "❌ Unknown format: size=" + frameBytes.length +
+                    " (expected NV12=" + expectedNV12Size + " or YUYV/I422=" + expectedYUYVSize + ")");
+                frameIndex++;
+                return;
             }
 
             frameIndex++;
@@ -318,6 +317,329 @@ public class V4L2VideoRecorder {
     }
 
     /**
+     * 检测数据是 YUYV（打包）还是 I422（平面）格式
+     * YUYV: Y0 U0 Y1 V0 交织，偶数位置是 Y，奇数位置是 U/V
+     * I422: YYYY... UUUU... VVVV... 平面分离
+     */
+    private boolean isYUYVFormat(byte[] data) {
+        // 检查前几行数据
+        // YUYV：偶数位置（0,2,4...）的值应该与奇数位置（1,3,5...）的值分布不同
+        // I422：前 width*height 字节都是 Y 值，应该连续变化
+
+        // 简单检测：检查第一行数据的方差
+        // YUYV 的奇偶位置方差应该很大（Y vs UV）
+        // I422 的所有值都是 Y，方差应该相对平滑
+
+        int checkLength = Math.min(1920 * 2, data.length); // 检查第一行
+        long sumEven = 0, sumOdd = 0;
+        int countEven = 0, countOdd = 0;
+
+        for (int i = 0; i < checkLength; i++) {
+            int val = data[i] & 0xFF;
+            if (i % 2 == 0) {
+                sumEven += val;
+                countEven++;
+            } else {
+                sumOdd += val;
+                countOdd++;
+            }
+        }
+
+        double avgEven = (double) sumEven / countEven;
+        double avgOdd = (double) sumOdd / countOdd;
+        double diff = Math.abs(avgEven - avgOdd);
+
+        // YUYV: Y 平均值通常在 64-192 范围，UV 平均值接近 128
+        // I422: 全是 Y 值，奇偶平均值应该很接近
+        // 如果差异小于 5，认为是 I422（平面）
+        return diff >= 5.0;
+    }
+
+    /**
+     * 编码 I422 格式的帧（MJPEG 软件解码后的 YUV422 平面格式）
+     * I422 格式: YYYY...UUUU...VVVV... (平面分离)
+     * 需要转换为 NV12: YYYY...UVUVUV...
+     */
+    private void encodeI422Frame(byte[] i422Data) {
+        long frameStartTime = System.nanoTime();
+        long conversionTime = 0;
+        long encodingTime = 0;
+
+        try {
+            // 获取输入缓冲区
+            int inputBufferIndex = mediaCodec.dequeueInputBuffer(INPUT_TIMEOUT_USEC);
+            if (inputBufferIndex >= 0) {
+                ByteBuffer inputBuffer = mediaCodec.getInputBuffer(inputBufferIndex);
+                if (inputBuffer != null) {
+                    inputBuffer.clear();
+
+                    // ===== 计时：I422→NV12 转换 =====
+                    long conversionStart = System.nanoTime();
+                    if (frameIndex == 0) {
+                        Log.d(TAG, "I422 conversion: USE_LIBYUV=" + USE_LIBYUV +
+                            ", reusableI422Buffer=" + (reusableI422Buffer != null) +
+                            ", reusableI420Buffer=" + (reusableI420Buffer != null) +
+                            ", reusableNv12Buffer=" + (reusableNv12Buffer != null));
+                    }
+                    byte[] nv12Data = USE_LIBYUV ? i422ToNV12Optimized(i422Data, width, height)
+                                                  : i422ToNV12(i422Data, width, height);
+                    conversionTime = System.nanoTime() - conversionStart;
+
+                    // 第一帧：输出转换信息
+                    if (frameIndex == 0) {
+                        Log.d(TAG, "I422 input size: " + i422Data.length + " bytes");
+                        Log.d(TAG, "NV12 output size: " + nv12Data.length + " bytes");
+                        Log.d(TAG, "Input buffer capacity: " + inputBuffer.capacity());
+                    }
+
+                    inputBuffer.put(nv12Data);
+
+                    // ===== 计时：编码器处理 =====
+                    long encodingStart = System.nanoTime();
+
+                    // 提交到编码器
+                    long presentationTimeUs = (System.nanoTime() - startTime) / 1000;
+                    mediaCodec.queueInputBuffer(inputBufferIndex, 0, nv12Data.length,
+                            presentationTimeUs, 0);
+
+                    if (frameIndex == 0) {
+                        Log.d(TAG, "First I422 frame queued to encoder, pts=" + presentationTimeUs);
+                    }
+
+                    // 获取输出数据
+                    drainEncoder(false);
+
+                    encodingTime = System.nanoTime() - encodingStart;
+                } else {
+                    Log.e(TAG, "!!! Input buffer is null for index " + inputBufferIndex);
+                    return;
+                }
+            } else {
+                Log.w(TAG, "!!! No input buffer available, index=" + inputBufferIndex);
+                return;
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "!!! Error encoding I422 frame", e);
+            e.printStackTrace();
+            return;
+        }
+
+        // ===== 更新性能统计 =====
+        long frameTime = System.nanoTime() - frameStartTime;
+        updatePerformanceStats(conversionTime, encodingTime, frameTime);
+    }
+
+    /**
+     * 将 I422 格式转换为 NV12 格式
+     * I422 (planar YUV422): Y(W*H) + U(W/2*H) + V(W/2*H) = W*H*2
+     * NV12 (semi-planar 4:2:0): Y(W*H) + UV_interleaved(W*H/2)
+     */
+    private byte[] i422ToNV12(byte[] i422, int width, int height) {
+        int ySize = width * height;
+        int chromaWidth = width / 2;  // 4:2:2 水平减半
+        int chromaHeight422 = height; // 4:2:2 垂直不变
+        int chromaHeight420 = height / 2; // 4:2:0 垂直减半
+
+        byte[] nv12 = new byte[ySize + ySize / 2];
+
+        // 1. 复制 Y 平面
+        System.arraycopy(i422, 0, nv12, 0, ySize);
+
+        // 2. I422 的 U/V 平面位置
+        int i422UOffset = ySize;
+        int i422VOffset = ySize + chromaWidth * chromaHeight422;
+
+        // 3. NV12 的 UV 平面起始位置
+        int nv12UVOffset = ySize;
+
+        // 4. 转换：垂直每两行取一行，交织 U/V
+        // 注意：先尝试 UV 顺序，如果颜色还是不对，换成 VU
+        int outputIdx = 0;
+        for (int y = 0; y < chromaHeight422; y += 2) {
+            for (int x = 0; x < chromaWidth; x++) {
+                int srcIdx = y * chromaWidth + x;
+
+                // UV 交织
+                nv12[nv12UVOffset + outputIdx * 2] = i422[i422UOffset + srcIdx];     // U
+                nv12[nv12UVOffset + outputIdx * 2 + 1] = i422[i422VOffset + srcIdx]; // V
+                outputIdx++;
+            }
+        }
+
+        if (frameIndex == 0) {
+            Log.d(TAG, String.format("I422→NV12: ySize=%d, chromaWidth=%d, chromaHeight422=%d, chromaHeight420=%d",
+                ySize, chromaWidth, chromaHeight422, chromaHeight420));
+            Log.d(TAG, String.format("  I422 U offset=%d, V offset=%d", i422UOffset, i422VOffset));
+            Log.d(TAG, String.format("  NV12 UV offset=%d, total size=%d", nv12UVOffset, nv12.length));
+        }
+
+        return nv12;
+    }
+
+    /**
+     * 优化版 I422→NV12 转换（使用 libyuv 库）
+     *
+     * I422 格式: Y(W*H) + U(W/2*H) + V(W/2*H)
+     * 使用 libyuv 的硬件加速进行高性能转换
+     */
+    private byte[] i422ToNV12Optimized(byte[] i422Data, int width, int height) {
+        // 检查复用 buffer 是否可用
+        if (reusableI422Buffer == null || reusableYuv420Array == null) {
+            if (frameIndex == 0) {
+                Log.w(TAG, "⚠ I422 reusable buffers not available, using fallback");
+            }
+            return i422ToNV12(i422Data, width, height);
+        }
+
+        int frameSize = width * height;
+        int chromaWidth = width / 2;
+        int chromaHeight = height;
+        int chromaSize = chromaWidth * chromaHeight;
+
+        try {
+            // 1. 将 I422 数据写入复用的 I422Buffer
+            // I422 格式：Y(width*height) + U(width/2*height) + V(width/2*height)
+
+            ByteBuffer yBuffer = reusableI422Buffer.getPlaneY().getBuffer();
+            ByteBuffer uBuffer = reusableI422Buffer.getPlaneU().getBuffer();
+            ByteBuffer vBuffer = reusableI422Buffer.getPlaneV().getBuffer();
+
+            yBuffer.clear();
+            uBuffer.clear();
+            vBuffer.clear();
+
+            // 写入 Y 平面
+            yBuffer.put(i422Data, 0, frameSize);
+            // 写入 U 平面
+            uBuffer.put(i422Data, frameSize, chromaSize);
+            // 写入 V 平面
+            vBuffer.put(i422Data, frameSize + chromaSize, chromaSize);
+
+            yBuffer.flip();
+            uBuffer.flip();
+            vBuffer.flip();
+
+            // 2. 转换 I422 → I420 (I422Buffer 不支持直接转换到 Nv12Buffer)
+            if (reusableI420Buffer == null) {
+                return i422ToNV12(i422Data, width, height);
+            }
+
+            reusableI422Buffer.convertTo(reusableI420Buffer);
+
+            // 3. 根据编码器需要的格式提取数据
+            if (reusableNv12Buffer != null) {
+                // 需要 NV12 格式 - 再进行 I420 → NV12 转换
+                reusableI420Buffer.convertTo(reusableNv12Buffer);
+
+                // 提取 Y 平面
+                ByteBuffer nv12YBuffer = reusableNv12Buffer.getPlaneY().getBuffer();
+                nv12YBuffer.rewind();
+                nv12YBuffer.get(reusableYuv420Array, 0, frameSize);
+
+                // 提取 UV 平面
+                ByteBuffer uvBuffer = reusableNv12Buffer.getPlaneUV().getBuffer();
+                uvBuffer.rewind();
+                uvBuffer.get(reusableYuv420Array, frameSize, frameSize / 2);
+
+                if (frameIndex == 0) {
+                    Log.d(TAG, "✅ Using optimized libyuv: I422 → I420 → NV12 (reusable buffers)");
+                }
+            } else {
+                // 需要 I420 格式 - 直接提取
+                // 提取 Y 平面
+                ByteBuffer i420YBuffer = reusableI420Buffer.getPlaneY().getBuffer();
+                i420YBuffer.rewind();
+                i420YBuffer.get(reusableYuv420Array, 0, frameSize);
+
+                // 提取 U 平面
+                ByteBuffer i420UBuffer = reusableI420Buffer.getPlaneU().getBuffer();
+                i420UBuffer.rewind();
+                i420UBuffer.get(reusableYuv420Array, frameSize, frameSize / 4);
+
+                // 提取 V 平面
+                ByteBuffer i420VBuffer = reusableI420Buffer.getPlaneV().getBuffer();
+                i420VBuffer.rewind();
+                i420VBuffer.get(reusableYuv420Array, frameSize + frameSize / 4, frameSize / 4);
+
+                if (frameIndex == 0) {
+                    Log.d(TAG, "✅ Using optimized libyuv: I422 → I420 (reusable buffers)");
+                }
+            }
+
+            return reusableYuv420Array;
+
+        } catch (Exception e) {
+            if (frameIndex == 0) {
+                Log.e(TAG, "❌ Optimized I422 libyuv failed: " + e.getMessage());
+            }
+            return i422ToNV12(i422Data, width, height);
+        }
+    }
+
+    /**
+     * 编码 NV12 格式的帧（MJPEG 硬件解码后的格式）
+     * NV12 是 MediaCodec 的原生格式，无需转换，直接传给编码器
+     */
+    private void encodeNV12Frame(byte[] nv12Data) {
+        long frameStartTime = System.nanoTime();
+        long encodingTime = 0;
+
+        try {
+            // 获取输入缓冲区
+            int inputBufferIndex = mediaCodec.dequeueInputBuffer(INPUT_TIMEOUT_USEC);
+            if (inputBufferIndex >= 0) {
+                ByteBuffer inputBuffer = mediaCodec.getInputBuffer(inputBufferIndex);
+                if (inputBuffer != null) {
+                    inputBuffer.clear();
+
+                    // 第一帧：输出信息
+                    if (frameIndex == 0) {
+                        Log.d(TAG, "NV12 input size: " + nv12Data.length + " bytes");
+                        Log.d(TAG, "Input buffer capacity: " + inputBuffer.capacity());
+                        Log.d(TAG, "✅ NV12 direct path (no conversion needed)");
+                    }
+
+                    // 直接放入 NV12 数据
+                    inputBuffer.put(nv12Data);
+
+                    // ===== 计时：编码器处理 =====
+                    long encodingStart = System.nanoTime();
+
+                    // 提交到编码器
+                    long presentationTimeUs = (System.nanoTime() - startTime) / 1000;
+                    mediaCodec.queueInputBuffer(inputBufferIndex, 0, nv12Data.length,
+                            presentationTimeUs, 0);
+
+                    if (frameIndex == 0) {
+                        Log.d(TAG, "First NV12 frame queued to encoder, pts=" + presentationTimeUs);
+                    }
+
+                    // 获取输出数据
+                    drainEncoder(false);
+
+                    encodingTime = System.nanoTime() - encodingStart;
+                } else {
+                    Log.e(TAG, "!!! Input buffer is null for index " + inputBufferIndex);
+                    return;
+                }
+            } else {
+                Log.w(TAG, "!!! No input buffer available, index=" + inputBufferIndex);
+                return;
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "!!! Error encoding NV12 frame", e);
+            e.printStackTrace();
+            return;
+        }
+
+        // ===== 更新性能统计（NV12 无转换时间）=====
+        long frameTime = System.nanoTime() - frameStartTime;
+        updatePerformanceStats(0, encodingTime, frameTime);
+    }
+
+    /**
      * 更新性能统计并定期输出
      */
     private void updatePerformanceStats(long conversionTimeNs, long encodingTimeNs, long frameTimeNs) {
@@ -368,13 +690,19 @@ public class V4L2VideoRecorder {
 
             // 预分配 libyuv buffer
             reusableYuy2Buffer = Yuy2Buffer.Factory.allocate(width, height);
+            reusableI422Buffer = I422Buffer.Factory.allocate(width, height);  // 用于 MJPEG 软解的 I422
+
+            // ✅ 关键修改：I420 是 I422→NV12 转换的中间格式，必须分配
+            reusableI420Buffer = I420Buffer.Factory.allocate(width, height);
+
             if (colorFormat == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar ||
                 colorFormat == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420PackedSemiPlanar) {
+                // 编码器需要 NV12 格式
                 reusableNv12Buffer = Nv12Buffer.Factory.allocate(width, height);
-                Log.d(TAG, "✅ Initialized reusable buffers: YUY2 + NV12");
+                Log.d(TAG, "✅ Initialized reusable buffers: YUY2 + I422 + I420(中间) + NV12(输出)");
             } else {
-                reusableI420Buffer = I420Buffer.Factory.allocate(width, height);
-                Log.d(TAG, "✅ Initialized reusable buffers: YUY2 + I420");
+                // 编码器需要 I420 格式（直接输出）
+                Log.d(TAG, "✅ Initialized reusable buffers: YUY2 + I422 + I420(输出)");
             }
 
             // 预分配输出数组

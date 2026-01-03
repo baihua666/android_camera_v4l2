@@ -100,6 +100,23 @@ public final class CameraAPI {
         }
     }
 
+    /**
+     * 获取实际设置的帧大小（驱动实际设置的值，可能与请求值不同）
+     * @return Pair<width, height> 或 null
+     */
+    public final Pair<Integer, Integer> getActualFrameSize() {
+        if (this.nativeObj == 0) {
+            Log.w(TAG, "Can't be call after call destroy");
+            return null;
+        } else {
+            int[] size = nativeGetActualFrameSize(this.nativeObj);
+            if (size != null && size.length == 2) {
+                return new Pair<>(size[0], size[1]);
+            }
+            return null;
+        }
+    }
+
     public final boolean setFrameCallback(IFrameCallback frameCallback) {
         if (this.nativeObj == 0) {
             Log.w(TAG, "Can't be call after call destroy");
@@ -167,6 +184,8 @@ public final class CameraAPI {
     private native int[][] nativeSupportSize(long nativeObj);
 
     private native int nativeFrameSize(long nativeObj, int width, int height, int pixelFormat);
+
+    private native int[] nativeGetActualFrameSize(long nativeObj);
 
     private native int nativeFrameCallback(long nativeObj, IFrameCallback frameCallback);
 
