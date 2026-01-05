@@ -40,6 +40,27 @@ static ActionInfo nativeCreate(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, in
     return status;
 }
 
+static ActionInfo nativeCreateByPath(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, jstring devicePath) {
+    auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
+    ActionInfo status = ACTION_ERROR_RELEASE;
+    if (LIKELY(camera)) {
+        if (devicePath == nullptr) {
+            LOGE(TAG, "nativeCreateByPath: devicePath is null");
+            return ACTION_ERROR_INVALID_PATH;
+        }
+        const char* path = env->GetStringUTFChars(devicePath, nullptr);
+        if (path != nullptr) {
+            status = camera->connectByPath(path);
+            env->ReleaseStringUTFChars(devicePath, path);
+        } else {
+            LOGE(TAG, "nativeCreateByPath: failed to get UTF chars");
+            status = ACTION_ERROR_INVALID_PATH;
+        }
+    }
+    LOGD(TAG, "camera->connectByPath(): %d", status);
+    return status;
+}
+
 static ActionInfo nativeAutoExposure(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, jboolean isAuto) {
     auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
     ActionInfo status = ACTION_ERROR_DESTROY;
@@ -181,9 +202,26 @@ static ActionInfo nativeDestroy(JNIEnv *env, jobject thiz, CAMERA_ID cameraId) {
     return status;
 }
 
+static void nativeSaveDebugFrame(JNIEnv *env, jobject thiz, CAMERA_ID cameraId, jstring savePath) {
+    auto *camera = reinterpret_cast<CameraAPI *>(cameraId);
+    if (LIKELY(camera)) {
+        if (savePath != nullptr) {
+            const char* path = env->GetStringUTFChars(savePath, nullptr);
+            if (path != nullptr) {
+                camera->requestSaveFrame(path);
+                env->ReleaseStringUTFChars(savePath, path);
+                LOGD(TAG, "camera->requestSaveFrame(): requested to save to %s", path);
+            }
+        } else {
+            LOGE(TAG, "nativeSaveDebugFrame: savePath is null");
+        }
+    }
+}
+
 static const JNINativeMethod METHODS[] = {
         {"nativeInit",               "()J",                                 (void *) nativeInit},
         {"nativeCreate",             "(JII)I",                              (void *) nativeCreate},
+        {"nativeCreateByPath",       "(JLjava/lang/String;)I",              (void *) nativeCreateByPath},
         {"nativeAutoExposure",       "(JZ)I",                               (void *) nativeAutoExposure},
         {"nativeSetExposure",        "(JI)I",                               (void *) nativeSetExposure},
         {"nativeFrameCallback",      "(JLcom/hsj/camera/IFrameCallback;)I", (void *) nativeFrameCallback},
@@ -194,6 +232,7 @@ static const JNINativeMethod METHODS[] = {
         {"nativeStart",              "(J)I",                                (void *) nativeStart},
         {"nativeStop",               "(J)I",                                (void *) nativeStop},
         {"nativeDestroy",            "(J)I",                                (void *) nativeDestroy},
+        {"nativeSaveDebugFrame",     "(JLjava/lang/String;)V",              (void *) nativeSaveDebugFrame},
 };
 
 jint registerAPI(JNIEnv *env){

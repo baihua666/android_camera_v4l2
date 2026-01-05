@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="10dp">
+
+        <!-- 标题 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="设备路径测试页面"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:paddingBottom="8dp" />
+
+        <!-- 相机预览 - 使用与 MainActivity 相同的 CameraView -->
+        <com.hsj.camera.CameraView
+            android:id="@+id/cameraView"
+            android:layout_width="280dp"
+            android:layout_height="360dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="10dp"/>
+
+        <!-- 设备路径输入 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="设备路径："
+            android:textSize="14sp" />
+
+        <EditText
+            android:id="@+id/et_device_path"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="/dev/video0"
+            android:inputType="text"
+            android:paddingVertical="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="提示：可以输入 /dev/video0, /dev/video23 等"
+            android:textSize="11sp"
+            android:textColor="#666666"
+            android:paddingBottom="8dp" />
+
+        <!-- 扫描设备按钮 -->
+        <Button
+            android:id="@+id/btn_scan_devices"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="扫描所有设备（查找有效信号）"
+            android:backgroundTint="#2196F3"
+            android:layout_marginBottom="4dp" />
+
+        <!-- 扫描结果显示 -->
+        <ScrollView
+            android:id="@+id/scroll_scan_result"
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:background="#F5F5F5"
+            android:padding="8dp"
+            android:visibility="gone"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:id="@+id/tv_scan_result"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:fontFamily="monospace"
+                android:textColor="#000000" />
+        </ScrollView>
+
+        <!-- 连接控制按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingBottom="4dp">
+
+            <Button
+                android:id="@+id/btn_connect"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="连接设备"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btn_disconnect"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="断开连接"
+                android:enabled="false" />
+        </LinearLayout>
+
+        <!-- 预览控制按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingBottom="4dp">
+
+            <Button
+                android:id="@+id/btn_start"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="开始预览"
+                android:enabled="false"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btn_stop"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="停止预览"
+                android:enabled="false" />
+        </LinearLayout>
+
+        <!-- 录制控制按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingBottom="4dp">
+
+            <Button
+                android:id="@+id/btn_start_record"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="开始录制"
+                android:enabled="false"
+                android:layout_marginEnd="2dp"
+                android:backgroundTint="#4CAF50" />
+
+            <Button
+                android:id="@+id/btn_stop_record"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="停止录制"
+                android:enabled="false"
+                android:layout_marginEnd="2dp"
+                android:backgroundTint="#F44336" />
+
+            <Button
+                android:id="@+id/btn_save_frame"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="保存帧"
+                android:enabled="false"
+                android:backgroundTint="#FF9800" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

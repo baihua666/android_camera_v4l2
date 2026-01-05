@@ -18,6 +18,27 @@ su
 chmod 666 /dev/video*
 ```
 
+### Usage
+
+#### Method 1: Connect by USB PID/VID (for USB cameras)
+```java
+CameraAPI camera = new CameraAPI();
+boolean ret = camera.create(productId, vendorId);
+```
+
+#### Method 2: Connect by Device Path (for all V4L2 devices)
+```java
+CameraAPI camera = new CameraAPI();
+boolean ret = camera.connectByPath("/dev/video0");
+// or
+boolean ret = camera.connectByPath("/dev/video23");
+```
+
+**Advantages of Method 2:**
+- More direct - no need to know PID/VID
+- Universal - supports all V4L2 devices, not just USB cameras
+- Easier debugging - you can specify the exact device
+
 ### Add Function
 - 1.FPS 30 of Dual cameras.
 - 1.Package Android camera based on V4L2 protocol.
@@ -25,6 +46,7 @@ chmod 666 /dev/video*
 - 3.Use NdkMediaCodec for MJPEG decoding. If the device does not support hard decoding,
     it is recommended to use libjpeg-turbo instead of HwDecoder.
 - 4.Support OpenGL ES rendering YUYV, NV12, NV21, DEPTH and other image formats.
+- 5.Support direct device path connection (e.g., `/dev/video0`) for all V4L2 devices
 
 ### Plan Add Function
 - 1.Add opengl filter for beauty by face color

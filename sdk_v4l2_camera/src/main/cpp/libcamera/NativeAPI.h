@@ -27,7 +27,9 @@ typedef enum ActionInfo{
     ACTION_ERROR_STOP             = 40,
     ACTION_ERROR_CLOSE            = 50,
     ACTION_ERROR_DESTROY          = 60,
-    ACTION_ERROR_RELEASE          = 70
+    ACTION_ERROR_RELEASE          = 70,
+    ACTION_ERROR_INVALID_PATH     = 100,
+    ACTION_ERROR_DEVICE_ACCESS    = 101
 }actionInfo;
 
 #ifdef __cplusplus

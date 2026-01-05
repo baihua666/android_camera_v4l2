@@ -922,7 +922,12 @@ public class V4L2VideoRecorder {
      */
     private void saveDebugFrame(byte[] frameBytes, long index) {
         try {
-            java.io.File debugFile = new java.io.File("/sdcard/debug_frame_" + index + ".jpg");
+            // 使用 outputPath 的父目录保存调试文件
+            File parentDir = new File(outputPath).getParentFile();
+            if (parentDir == null) {
+                parentDir = new File(".");
+            }
+            java.io.File debugFile = new java.io.File(parentDir, "debug_frame_" + index + ".jpg");
             java.io.FileOutputStream fos = new java.io.FileOutputStream(debugFile);
             fos.write(frameBytes);
             fos.close();
@@ -936,8 +941,8 @@ public class V4L2VideoRecorder {
      * 保存原始YUYV和转换后的YUV420数据用于离线分析
      *
      * 使用方法：
-     * 1. adb pull /sdcard/debug_yuyv_720x480.raw /Users/tubao/temp/
-     * 2. adb pull /sdcard/debug_yuv420_720x480.yuv /Users/tubao/temp/
+     * 1. adb pull <app_files_dir>/debug_yuyv_720x480.raw ./
+     * 2. adb pull <app_files_dir>/debug_yuv420_720x480.yuv ./
      * 3. 使用ffplay查看原始数据：
      *    ffplay -f rawvideo -pixel_format yuyv422 -video_size 720x480 debug_yuyv_720x480.raw
      *    ffplay -f rawvideo -pixel_format nv12 -video_size 720x480 debug_yuv420_720x480.yuv
@@ -945,9 +950,15 @@ public class V4L2VideoRecorder {
      */
     private void saveRawDebugData(byte[] yuyvData, byte[] yuv420Data) {
         try {
+            // 使用 outputPath 的父目录保存调试文件
+            File parentDir = new File(outputPath).getParentFile();
+            if (parentDir == null) {
+                parentDir = new File(".");
+            }
+
             // 保存原始YUYV数据
-            String yuyvPath = String.format("/sdcard/debug_yuyv_%dx%d.raw", width, height);
-            java.io.File yuyvFile = new java.io.File(yuyvPath);
+            String yuyvFileName = String.format("debug_yuyv_%dx%d.raw", width, height);
+            java.io.File yuyvFile = new java.io.File(parentDir, yuyvFileName);
             java.io.FileOutputStream yuyvFos = new java.io.FileOutputStream(yuyvFile);
             yuyvFos.write(yuyvData);
             yuyvFos.close();
@@ -956,8 +967,8 @@ public class V4L2VideoRecorder {
                   width + "x" + height + " " + yuyvFile.getName());
 
             // 保存转换后的YUV420数据
-            String yuv420Path = String.format("/sdcard/debug_yuv420_%dx%d.yuv", width, height);
-            java.io.File yuv420File = new java.io.File(yuv420Path);
+            String yuv420FileName = String.format("debug_yuv420_%dx%d.yuv", width, height);
+            java.io.File yuv420File = new java.io.File(parentDir, yuv420FileName);
             java.io.FileOutputStream yuv420Fos = new java.io.FileOutputStream(yuv420File);
             yuv420Fos.write(yuv420Data);
             yuv420Fos.close();

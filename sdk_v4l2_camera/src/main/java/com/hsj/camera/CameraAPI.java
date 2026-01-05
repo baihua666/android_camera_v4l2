@@ -51,6 +51,29 @@ public final class CameraAPI {
         }
     }
 
+    /**
+     * 通过设备路径直接连接相机
+     * @param devicePath 设备路径，例如 "/dev/video0"
+     * @return 成功返回 true，失败返回 false
+     * @throws IllegalArgumentException 如果 devicePath 为 null 或空字符串
+     */
+    public final synchronized boolean connectByPath(String devicePath) {
+        if (devicePath == null) {
+            throw new IllegalArgumentException("Device path cannot be null");
+        }
+        if (devicePath.isEmpty()) {
+            throw new IllegalArgumentException("Device path cannot be empty");
+        }
+        if (this.nativeObj == 0) {
+            Log.e(TAG, "Can't be call after call destroy");
+            return false;
+        } else {
+            int status = nativeCreateByPath(this.nativeObj, devicePath);
+            Logger.d(TAG, "connectByPath: " + status);
+            return STATUS_SUCCESS == status;
+        }
+    }
+
     public final boolean setAutoExposure(boolean isAuto) {
         if (this.nativeObj == 0) {
             Log.w(TAG, "Can't be call after call destroy");
@@ -171,11 +194,34 @@ public final class CameraAPI {
         }
     }
 
+    /**
+     * 调试功能：保存下一帧原始数据到指定目录
+     * 用于分析预览黑屏问题，可以通过 ADB pull 获取保存的文件
+     *
+     * @param savePath 保存目录路径，例如 "/sdcard/Download" 或应用私有目录
+     *                 保存的文件命名格式：frame_{width}x{height}_{format}.raw
+     *                 其中 format 可能是 yuyv_raw, mjpeg, yuv_decoded 等
+     */
+    public final void saveDebugFrame(String savePath) {
+        if (this.nativeObj == 0) {
+            Log.w(TAG, "saveDebugFrame: Can't be call after destroy");
+            return;
+        }
+        if (savePath == null || savePath.isEmpty()) {
+            Log.e(TAG, "saveDebugFrame: Invalid save path");
+            return;
+        }
+        nativeSaveDebugFrame(this.nativeObj, savePath);
+        Logger.d(TAG, "saveDebugFrame: requested save to " + savePath);
+    }
+
 //=======================================Native API=================================================
 
     private native long nativeInit();
 
     private native int nativeCreate(long nativeObj, int productId, int vendorId);
+
+    private native int nativeCreateByPath(long nativeObj, String devicePath);
 
     private native int nativeAutoExposure(long nativeObj, boolean isAuto);
 
@@ -196,5 +242,7 @@ public final class CameraAPI {
     private native int nativeStop(long nativeObj);
 
     private native int nativeDestroy(long nativeObj);
+
+    private native void nativeSaveDebugFrame(long nativeObj, String savePath);
 
 }

@@ -1,11 +1,14 @@
 cmake_minimum_required(VERSION 3.10.2)
 project("camera_v4l2")
 
-# set flag
-set(CMAKE_BUILD_TYPE RELEASE)
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -s")
+# 构建类型由 Android Gradle Plugin 自动传递，跟随 APK 的 buildType
+# debug -> CMAKE_BUILD_TYPE=Debug, release -> CMAKE_BUILD_TYPE=Release
+
+# Debug 构建：保留调试符号，添加 -g 标志
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -O0")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
+# Release 构建：strip 符号
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -s")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
 
 # set common name

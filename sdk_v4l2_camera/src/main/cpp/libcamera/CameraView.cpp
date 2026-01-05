@@ -161,19 +161,22 @@ void CameraView::renderYUV422(const uint8_t *data) {
 
 //YUYV: 18ms (YUV422)
 void CameraView::renderYUYV(const uint8_t *data) {
+    // 1. 先将 YUYV (YUY2) 打包格式转换为 I422 planar 格式
     libyuv::YUY2ToI422(data, stride_width,
                        yuv422, pixelWidth,
                        yuv422 + start_u, stride_uv,
                        yuv422 + start_v, stride_uv,
                        pixelWidth, pixelHeight);
+
+    // 2. 再将 I422 转换为 ABGR 渲染到 Surface
     ANativeWindow_Buffer buffer;
     if (LIKELY(0 == ANativeWindow_lock(window, &buffer, nullptr))) {
         auto *dest = (uint8_t *) buffer.bits;
-        libyuv::I422ToABGR(yuv422, buffer.width,
+        libyuv::I422ToABGR(yuv422, pixelWidth,
                            yuv422 + start_u, stride_uv,
                            yuv422 + start_v, stride_uv,
                            dest, buffer.stride * 4,
-                           buffer.width, buffer.height);
+                           pixelWidth, pixelHeight);
         ANativeWindow_unlockAndPost(window);
     }
 }

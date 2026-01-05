@@ -4,6 +4,8 @@ android {
     namespace 'com.hsj.sample'
     compileSdkVersion rootProject.ext.android.compileSdkVersion
     buildToolsVersion rootProject.ext.android.buildToolsVersion
+    ndkVersion "26.3.11579264"  // 与 library 保持一致
+
     defaultConfig {
         applicationId rootProject.ext.android.applicationId
         minSdkVersion rootProject.ext.android.minSdkVersion
@@ -12,6 +14,10 @@ android {
         versionName rootProject.ext.android.versionName
 
         testInstrumentationRunner rootProject.ext.dependencies.testInstrumentationRunner
+
+        ndk {
+            abiFilters 'arm64-v8a'  // 只构建您设备的架构
+        }
     }
 
     signingConfigs {
@@ -33,6 +39,9 @@ android {
             minifyEnabled false
             signingConfig signingConfigs.config
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            debuggable true
+            jniDebuggable true  // 启用 JNI 调试
         }
         release {
             minifyEnabled false
@@ -55,6 +64,12 @@ android {
         checkReleaseBuilds false
         warning 'InvalidPackage'
         disable 'GoogleAppIndexingWarning'
+    }
+
+    packagingOptions {
+        // 保留 Native 调试符号
+        doNotStrip "*/arm64-v8a/*.so"
+        doNotStrip "*/armeabi-v7a/*.so"
     }
 
     dexOptions {

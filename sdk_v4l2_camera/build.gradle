@@ -4,6 +4,7 @@ android {
     namespace 'com.hsj.sdk_v4l2_camera'
     compileSdkVersion rootProject.ext.android.compileSdkVersion
     buildToolsVersion rootProject.ext.android.buildToolsVersion
+    ndkVersion "26.3.11579264"  // 明确指定 NDK 版本
 
     buildFeatures {
         buildConfig true
@@ -20,16 +21,35 @@ android {
                 abiFilters "arm64-v8a"
                 cppFlags "-Wunused -frtti -fexceptions -fPIE"
                 arguments "-DANDROID_ARM_NEON=TRUE",
-                        "-DCMAKE_BUILD_TYPE=Release",
                         "-DANDROID_PLATFORM=android-21"
+                // 不要在这里设置 CMAKE_BUILD_TYPE，让它根据 buildType 自动选择
             }
         }
     }
 
     buildTypes {
+        debug {
+            minifyEnabled false
+            debuggable true
+            jniDebuggable true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            externalNativeBuild {
+                cmake {
+                    // Debug 构建：生成调试符号，优化级别 O0
+                    arguments "-DCMAKE_BUILD_TYPE=Debug"
+                    cppFlags "-O0", "-g", "-DDEBUG"
+                }
+            }
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            externalNativeBuild {
+                cmake {
+                    // Release 构建：优化性能
+                    arguments "-DCMAKE_BUILD_TYPE=Release"
+                }
+            }
         }
     }
 

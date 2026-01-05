@@ -39,6 +39,7 @@ private:
     int frameWidth;
     int frameHeight;
     int frameFormat;
+    bool useMultiplanar;  // 是否使用多平面 API
 
     size_t pixelBytes;
     uint8_t* out_buffer;
@@ -53,16 +54,28 @@ private:
     volatile StatusInfo status;
     inline const StatusInfo getStatus() const;
 
+    // 调试功能：保存单帧数据
+    volatile bool saveFrameRequested;
+    char debugSavePath[256];
+
     ActionInfo prepareBuffer();
     static void* loopThread(void *args);
     void loopFrame(JNIEnv *env, CameraAPI *camera);
     void sendFrame(JNIEnv *env, uint8_t *data);
     void renderFrame(uint8_t *data);
 
+    // 设备打开和验证
+    ActionInfo openDevice(const char* devicePath);
+    bool validateDevicePath(const char* devicePath);
+
+    // 调试：保存帧数据到文件
+    void saveFrameToFile(const uint8_t* data, size_t size, const char* suffix);
+
 public:
     CameraAPI();
     ~CameraAPI();
     ActionInfo connect(unsigned int pid, unsigned int vid);
+    ActionInfo connectByPath(const char* devicePath);
     ActionInfo autoExposure(bool isAuto);
     ActionInfo updateExposure(unsigned int level);
     ActionInfo getSupportSize(std::vector<std::pair<int, int>> &sizes);
@@ -74,6 +87,9 @@ public:
     ActionInfo stop();
     ActionInfo close();
     ActionInfo destroy();
+
+    // 调试接口：请求保存下一帧
+    void requestSaveFrame(const char* savePath);
 };
 
 #ifdef __cplusplus

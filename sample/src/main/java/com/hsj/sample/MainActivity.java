@@ -65,14 +65,22 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
     private int videoWidth;
     private int videoHeight;
 
-    private int frameFormat = CameraAPI.FRAME_FORMAT_MJPEG;
-//    private int frameFormat = CameraAPI.FRAME_FORMAT_YUYV;
+//    yuv格式优先使用720*576
+    private int frameFormat = CameraAPI.FRAME_FORMAT_YUYV;  // 使用 YUYV 格式（设备不支持 MJPEG）
+//    private int frameFormat = CameraAPI.FRAME_FORMAT_MJPEG;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // 添加测试页面入口
+        findViewById(R.id.btn_path_test).setOnClickListener(v -> {
+            android.content.Intent intent = new android.content.Intent(this, PathTestActivity.class);
+            startActivity(intent);
+        });
+
         findViewById(R.id.btn_create).setOnClickListener(v -> create());
         findViewById(R.id.btn_start).setOnClickListener(v -> start());
         findViewById(R.id.btn_stop).setOnClickListener(v -> stop());
@@ -87,6 +95,9 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
         btnStopRecord = findViewById(R.id.btn_stop_record);
         btnStartRecord.setOnClickListener(v -> startRecording());
         btnStopRecord.setOnClickListener(v -> stopRecording());
+
+        // 初始化保存调试帧按钮
+        findViewById(R.id.btn_save_frame).setOnClickListener(v -> saveDebugFrame());
 
         //Request permission: /dev/video*
         requestPermissionV1();
@@ -141,7 +152,20 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
     private void create() {
         if (this.camera == null) {
             CameraAPI camera = new CameraAPI();
+
+            // 连接方式 1: 通过 USB PID/VID 连接（适用于 USB 设备）
             boolean ret = camera.create(pid, vid);
+
+            // 连接方式 2: 通过设备路径直接连接（适用于所有 V4L2 设备）
+            // 如果你知道设备路径，可以直接使用以下方式连接：
+            // boolean ret = camera.connectByPath("/dev/video0");
+            // 或者：
+            // boolean ret = camera.connectByPath("/dev/video23");
+            //
+            // 优点：
+            // - 更直接，无需知道 PID/VID
+            // - 支持所有 V4L2 设备（不仅限 USB）
+            // - 调试更方便
             int[][] supportFrameSize = camera.getSupportFrameSize();
             if (supportFrameSize == null || supportFrameSize.length == 0) {
                 showToast("Get support preview size failed.");
@@ -181,7 +205,13 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
                         }
                     }
                 }
-                if (ret) this.camera = camera;
+                if (ret) {
+                    this.camera = camera;
+
+                    // 启用自动曝光（解决画面偏暗问题）
+                    boolean autoExposureResult = camera.setAutoExposure(true);
+                    Log.d(TAG, "设置自动曝光: " + (autoExposureResult ? "成功" : "失败"));
+                }
             }
         } else {
             showToast("Camera had benn created");
@@ -190,31 +220,40 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
 
     /**
      * 选择最佳分辨率
-     * MJPEG 格式优先级：1080P > 720P > 中间分辨率
+     * YUYV 格式优先：720x576 > 640x480 > 中间分辨率
+     * MJPEG 格式优先：1920x1080
      */
     private int[] selectBestResolution(int[][] supportFrameSize) {
-        // 优先选择 1080P（MJPEG 支持）
+        // MJPEG 格式：优先选择 1080P
         if (frameFormat == CameraAPI.FRAME_FORMAT_MJPEG) {
             for (int[] size : supportFrameSize) {
                 if (size[0] == 1920 && size[1] == 1080) {
-                    Log.d(TAG, "Found 1080P resolution (MJPEG)");
+                    Log.d(TAG, "找到 1080P 分辨率（MJPEG）");
                     return size;
                 }
             }
         }
+        // YUYV 格式：优先选择 720x576（根据用户反馈）
         else if (frameFormat == CameraAPI.FRAME_FORMAT_YUYV) {
+            // 第一优先：720x576
             for (int[] size : supportFrameSize) {
                 if (size[0] == 720 && size[1] == 576) {
-                    Log.d(TAG, "Found 720P resolution");
+                    Log.d(TAG, "找到 720x576 分辨率（YUYV 优先）");
+                    return size;
+                }
+            }
+            // 第二优先：640x480
+            for (int[] size : supportFrameSize) {
+                if (size[0] == 640 && size[1] == 480) {
+                    Log.d(TAG, "找到 640x480 分辨率（YUYV 备选）");
                     return size;
                 }
             }
         }
-
 
         // 否则选择中间分辨率
         int index = supportFrameSize.length / 2;
-        Log.d(TAG, "Using middle resolution [" + index + "]: " +
+        Log.d(TAG, "使用中间分辨率 [" + index + "]: " +
             supportFrameSize[index][0] + "x" + supportFrameSize[index][1]);
         return supportFrameSize[index];
     }
@@ -429,6 +468,33 @@ public final class MainActivity extends AppCompatActivity implements ISurfaceCal
 
         showToast("Recording stopped");
         Log.d(TAG, "Recording stopped");
+    }
+
+//==========================================Debug Frame Save=========================================
+
+    /**
+     * 保存调试帧 - 用于分析预览黑屏问题
+     * 保存的文件可以通过 ADB pull 获取并分析
+     */
+    private void saveDebugFrame() {
+        if (this.camera == null) {
+            showToast("Please create camera first");
+            return;
+        }
+
+        // 保存到应用私有目录，确保有写入权限
+        File debugDir = new File(getExternalFilesDir(null), "debug_frames");
+        if (!debugDir.exists()) {
+            debugDir.mkdirs();
+        }
+
+        String savePath = debugDir.getAbsolutePath();
+        this.camera.saveDebugFrame(savePath);
+
+        showToast("正在保存帧到: " + savePath);
+        Log.d(TAG, "Saving debug frame to: " + savePath);
+        Log.d(TAG, "使用以下命令获取文件:");
+        Log.d(TAG, "  adb pull " + savePath + "/ ./");
     }
 
 }
