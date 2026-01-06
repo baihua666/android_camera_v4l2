@@ -65,8 +65,8 @@ public class PathTestActivity extends AppCompatActivity implements ISurfaceCallb
     private int videoWidth;
     private int videoHeight;
     //    yuv格式优先使用720*576
-//    private int frameFormat = CameraAPI.FRAME_FORMAT_YUYV;  // 使用 YUYV 格式（设备不支持 MJPEG）
-        private int frameFormat = CameraAPI.FRAME_FORMAT_MJPEG;
+    private int frameFormat = CameraAPI.FRAME_FORMAT_YUYV;  // 使用 YUYV 格式（设备不支持 MJPEG）
+//        private int frameFormat = CameraAPI.FRAME_FORMAT_MJPEG;
 
 
     @Override
@@ -310,13 +310,16 @@ public class PathTestActivity extends AppCompatActivity implements ISurfaceCallb
                     return size;
                 }
             }
+            // debug，直接返回720x576
+//            return new int[]{720, 576};
+
             // 第二优先：640x480
-            for (int[] size : supportFrameSize) {
-                if (size[0] == 640 && size[1] == 480) {
-                    Log.d(TAG, "找到 640x480 分辨率（YUYV 备选）");
-                    return size;
-                }
-            }
+//            for (int[] size : supportFrameSize) {
+//                if (size[0] == 640 && size[1] == 480) {
+//                    Log.d(TAG, "找到 640x480 分辨率（YUYV 备选）");
+//                    return size;
+//                }
+//            }
         }
 
         // 否则选择中间分辨率
