@@ -208,7 +208,7 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
         }
 
         frame_count++;
-        if (frame_count % 30 == 1) {  // 每 30 帧打印一次
+        if (frame_count % 30 * 10 == 1) {  // 每 30 帧打印一次
             LOGD(TAG, "Loop frame: received frame #%d, index=%d", frame_count, buffer.index);
         }
 
@@ -275,7 +275,7 @@ void CameraAPI::loopFrame(JNIEnv *env, CameraAPI *camera) {
 void CameraAPI::renderFrame(uint8_t *data) {
     static int render_call_count = 0;
     render_call_count++;
-    if (render_call_count <= 3 || render_call_count % 100 == 0) {
+    if (render_call_count <= 3 || render_call_count % 1000 == 0) {
         LOGD(TAG, "renderFrame: call #%d, preview=%p, data=%p", render_call_count, preview, data);
     }
     if (LIKELY(preview && data)) {

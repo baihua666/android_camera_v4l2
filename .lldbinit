@@ -1,0 +1,10 @@
+# LLDB 初始化配置
+# 添加符号搜索路径
+settings set target.debug-file-search-paths /Users/tubao/code/private/tripod/CameraDemo/android_camera_v4l2/sdk_v4l2_camera/build/intermediates/cxx/Debug/6t1w4k4c/obj/arm64-v8a
+
+# 启用详细日志
+log enable lldb all
+log enable gdb-remote all
+
+# 设置超时
+settings set plugin.process.gdb-remote.packet-timeout 60

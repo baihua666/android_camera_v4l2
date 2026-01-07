@@ -456,6 +456,8 @@ public class PathTestActivity extends AppCompatActivity implements ISurfaceCallb
         Log.d(TAG, "=== 保存调试帧 ===");
         Log.d(TAG, "保存路径: " + savePath);
         Log.d(TAG, "获取文件命令: adb pull " + savePath + "/ ./");
+        // 播放命令示例（YUYV格式）：
+        Log.d(TAG, "播放命令示例: ffplay -f rawvideo -pixel_format yuyv422 -video_size 720x576 frame_720x576_yuyv_raw.raw");
     }
 
     /**
