@@ -839,6 +839,14 @@ ActionInfo CameraAPI::close() {
 }
 
 ActionInfo CameraAPI::destroy() {
+    // 清理 preview（CameraView），释放 ANativeWindow 引用
+    // 这是修复 HDMI 首次插入黑屏问题的关键：
+    // 如果不清理 preview，旧的 CameraView 会持有 ANativeWindow 连接，
+    // 导致下次 setPreview 时出现 "BufferQueueProducer: already connected" 错误
+    if (preview) {
+        preview->destroy();
+        SAFE_DELETE(preview);
+    }
     fd = 0;
     pixelBytes = 0;
     frameWidth = 0;
